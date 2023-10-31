@@ -1,10 +1,17 @@
 import express from 'express';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 
 const hostname = '127.0.0.1';
 const port = 3000;
 const app = express();
-const wasmBinary = fs.readFileSync('../wasm_calculator/target/wasm32-wasi/release/wasm_calculator.wasm');
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const wasmFilePath = path.join(__dirname, '..', 'wasm_calculator', 'target', 'wasm32-wasi', 'release', 'wasm_calculator.wasm');
+const wasmBinary = fs.readFileSync(wasmFilePath);
 const wasmModule = new WebAssembly.Module(wasmBinary);
 
 const imports = {
@@ -24,12 +31,10 @@ const imports = {
 };
 const wasmInstance = new WebAssembly.Instance(wasmModule, imports);
 
-app.get('/add', (req, res) => {	
-
-  const a = parseInt(req.query.a, 10);
-  const b = parseInt(req.query.b, 10);
-  const result = wasmInstance.exports.add(a, b);
-  res.json(result);
+app.get('/fibonacci', (req, res) => {	
+  const num = parseInt(req.query.num, 10);
+  const result = wasmInstance.exports.fibonacci(num);
+  res.json(result.toString());
 });
 
 

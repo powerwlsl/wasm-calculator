@@ -7,42 +7,36 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-let num1, num2;
-promptForFirstNumber();
+let num;
+let serverInUse = false;
 
-function promptForFirstNumber() {
-  rl.question('Enter the first number: ', (input) => {
-    num1 = Number(input);
-    if (isNaN(num1)) {
-      console.error('Please provide a valid number.');
-      promptForFirstNumber();
-    } else {
-      promptForSecondNumber();
-    }
-  });
-}
+promptForNumber();
 
-function promptForSecondNumber() {
-  rl.question('Enter the second number: ', (input) => {
-    num2 = Number(input);
-    if (isNaN(num2)) {
+function promptForNumber() {
+  rl.question('Enter a number: ', (input) => {
+    num = Number(input);
+    if (isNaN(num)) {
       console.error('Please provide a valid number.');
-      promptForSecondNumber();
+      promptForNumber();
     } else {
       promptForExecutionMode();
     }
   });
 }
 
+
 function promptForExecutionMode() {
-  rl.question('Do you want to run on server or local? (Type "server" or "local"): ', (mode) => {
+  rl.question('Do you want to run on server or local? (Type "server" or "local". Or press enter to let the program decide.): ', (mode) => {
     if (mode === 'server') {
       computeOnServer();
       rl.close();
     } else if (mode === 'local') {
       computeLocally();
       rl.close();
-    } else {
+    } else if (mode === '') {
+      negotiateComputation();
+      rl.close();
+    } else  {
       console.error('Please choose a valid mode ("server" or "local").');
       promptForExecutionMode();
     }
@@ -71,15 +65,23 @@ const imports = {
 
 
 function computeOnServer() {
-  fetch(`http://127.0.0.1:3000/add?a=${num1}&b=${num2}`)
+  serverInUse = true;
+  fetch(`http://127.0.0.1:3000/fibonacci?num=${num}`)
       .then(response => response.json())
-      .then(data => {
-          console.log(`The sum of ${num1} and ${num2} is ${data}.`);
+      .then(result => {
+          const fibNumber = BigInt(result);
+          console.log(`The ${num}th fibonacci number is ${fibNumber}.`);
       })
       .catch(error => {
           if (error.code === 'ECONNREFUSED') {
               console.error('The server is not running. Please start the server and try again.');
+              computeLocally();
+          } else {
+              console.error('An error occurred:', error);
           }
+      })
+      .finally(() => {
+          serverInUse = false; 
       });
 }
 
@@ -87,7 +89,19 @@ function computeLocally() {
   const wasmBinary = fs.readFileSync('./wasm_calculator/target/wasm32-wasi/release/wasm_calculator.wasm');
   const wasmModule = new WebAssembly.Module(wasmBinary);
   const wasmInstance = new WebAssembly.Instance(wasmModule, imports);
+  const result = wasmInstance.exports.fibonacci(num);
+  
+  
+  console.log(`The ${num}th fibonacci number is ${result}.`);
+}
 
-  const result = wasmInstance.exports.add(num1, num2);
-  console.log(`The sum of ${num1} and ${num2} is ${result}.`);
+
+function negotiateComputation(num) {
+  const threshold = 20;
+  
+  if (num < threshold || serverInUse) {
+    computeLocally();
+  } else {
+    computeOnServer();
+  }
 }
